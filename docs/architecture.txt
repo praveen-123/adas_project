@@ -1,0 +1,11 @@
++----------------+      +-----------------+      +---------------+      +-------------+
+|                |      |                 |      |               |      |             |
+|  Camera Sensor |----->|  Camera ECU     |----->|  CAN Bus      |----->|  ADAS ECU   |
+|  (Simulator)   |      |  (Logger)       |      |  (Network)    |      | (Consumer)  |
+|                |      |                 |      |               |      |             |
++----------------+      +-----------------+      +---------------+      +-------------+
+      |                         |                        |                     |
+      v                         v                        v                     v
+Generates frame_XXX.png  Reads camera_log.csv    Broadcasts CAN        Uses messages for
+& camera_log.csv         Generates CAN messages  messages (simulated   decision making
+                                                  by can_messages.log)  (Future Step)
