@@ -54,7 +54,7 @@ This project was developed and tested in the following environment:
 
 The following flowchart illustrates the simulated data pipeline:
 
-![ADAS Simulation Data Flow](./docs/adas_simulation_flowchart.png)
+[View System Architecture Diagram (Text Format)](./docs/architecture.txt)
 
 **Data Flow Explanation:**
 1.  **Camera Simulator:** Acts as the physical sensor, generating raw image data and status.
