@@ -1,0 +1,9 @@
+# Ignore generated simulation files
+simulations/*.png
+simulations/*.csv
+simulations/*.log
+
+# Ignore Python cache and virtual environment
+__pycache__/
+*.pyc
+adas_venv/
