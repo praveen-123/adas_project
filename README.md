@@ -89,4 +89,10 @@ Through this project, I implemented and deepened my understanding of:
 
 ## 📄 License
 
+## Day 2 Progress: ROS 2 Communication
+- Successfully built and tested a publisher-subscriber pair in ROS 2.
+- The `camera_publisher` node publishes `sensor_msgs/Image` messages to the `/camera/image_raw` topic.
+- The `display_subscriber` node subscribes to the topic, converts messages to OpenCV format, and displays them in a window.
+- Verified the system using ROS 2 CLI tools (`ros2 node list`, `ros2 topic list`, `ros2 topic hz`).
+
 This project is for portfolio and educational purposes.
