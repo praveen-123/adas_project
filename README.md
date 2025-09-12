@@ -95,4 +95,30 @@ Through this project, I implemented and deepened my understanding of:
 - The `display_subscriber` node subscribes to the topic, converts messages to OpenCV format, and displays them in a window.
 - Verified the system using ROS 2 CLI tools (`ros2 node list`, `ros2 topic list`, `ros2 topic hz`).
 
+## Day 3: Object Detection with YOLOv8
+
+Implemented real-time object detection using YOLOv8 integrated with ROS 2.
+
+### Features:
+- YOLOv8 object detection integrated as a ROS 2 node
+- Support for both video files and KITTI dataset images
+- Standard ROS message types for detections (vision_msgs/Detection2DArray)
+- Visualization of bounding boxes and confidence scores
+
+### How to Run:
+1. Start the camera publisher (choose one):
+   ```bash
+   # For video files
+   python3 src/scripts/camera_publisher_video.py
+   
+   # For KITTI dataset images
+   python3 src/scripts/camera_publisher_KITTI_images.py
+
+2. Start the object detector:
+   python3 src/scripts/detector_node.py
+
+3. Start the display node:
+   python3 src/scripts/display_subscriber.py
+
+
 This project is for portfolio and educational purposes.
