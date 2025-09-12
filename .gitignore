@@ -1,4 +1,14 @@
-# Ignore generated simulation files
+# Large data files
+simulations/2011_09_26_drive_0005_extract/
+simulations/myvideo.mp4
+
+# Model weights
+*.pt
+
+# Temporary files
+*.jpg
+__pycache__/
+*.pyc# Ignore generated simulation files
 simulations/*.png
 simulations/*.csv
 simulations/*.log

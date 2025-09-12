@@ -18,7 +18,7 @@ class CameraPublisher(Node):
         
         # Get the absolute path to the test video
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        video_path = os.path.join(project_root, 'simulations', 'test_video.mp4')
+        video_path = os.path.join(project_root, 'simulations', 'myvideo.mp4')
         self.get_logger().info(f"Using video path: {video_path}")
         
         # Open the video file

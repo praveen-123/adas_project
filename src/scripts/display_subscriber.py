@@ -1,101 +1,114 @@
 #!/usr/bin/env python3
 
-# Import the necessary libraries
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from vision_msgs.msg import Detection2DArray
 from cv_bridge import CvBridge
 import cv2
 
 class DisplaySubscriber(Node):
     """
-    A ROS2 Node that subscribes to an image topic and displays the image using OpenCV.
-    This is the Consumer in our system.
+    A ROS2 node that subscribes to both an image topic and a detection topic.
+    It visualizes the detections by drawing bounding boxes on the image.
     """
-
     def __init__(self):
-        """
-        Constructor for the DisplaySubscriber node.
-        Initializes the node, sets up the CV bridge, and creates the subscription.
-        """
-        # Initialize the parent Node class with the name 'display_subscriber'
         super().__init__('display_subscriber')
-        
-        # Instantiate the CvBridge object. This is our tool for converting ROS images to OpenCV images.
         self.bridge = CvBridge()
         
-        # Create a Subscription.
-        # - The first parameter (Image) specifies the type of message to listen for.
-        # - The second parameter ('/camera/image_raw') is the name of the topic to subscribe to.
-        #   This MUST match the topic name the camera_publisher is using.
-        # - The third parameter (self.listener_callback) is the callback function that will be
-        #   executed every time a new message is received on the topic.
-        # - The fourth parameter (10) is the queue size. It tells ROS to buffer up to 10 messages
-        #   in case the callback function is busy processing a previous one. If the queue fills up,
-        #   old messages will be dropped.
-        self.subscription = self.create_subscription(
+        # We need the latest image and the latest detections to draw on it
+        self.current_image = None
+        self.current_detections = None
+        
+        # Subscribe to the raw camera image
+        self.image_sub = self.create_subscription(
             Image,
             '/camera/image_raw',
-            self.listener_callback,
-            10)
-        # Prevent the subscription object from being destroyed prematurely by keeping an unused reference.
-        self.subscription
+            self.image_callback,
+            10
+        )
+        # Subscribe to the YOLO detections
+        self.detection_sub = self.create_subscription(
+            Detection2DArray,
+            '/yolo_detections',
+            self.detection_callback,
+            10
+        )
         
-        # Print a confirmation message to the terminal.
-        self.get_logger().info('Display subscriber node has been started and is listening on /camera/image_raw...')
+        self.get_logger().info("Display subscriber node started. Waiting for data...")
 
-    def listener_callback(self, msg):
-        """
-        Callback function that is triggered whenever a new image message is received.
-        
-        Args:
-            msg (sensor_msgs.msg.Image): The incoming image message.
-        """
+    def image_callback(self, msg):
+        """Store the latest image."""
         try:
-            # Convert the ROS Image message to an OpenCV image.
-            # - 'msg' is the incoming ROS message.
-            # - 'bgr8' is the desired encoding. This matches the 'bgr8' encoding we used in the publisher.
-            #   OpenCV uses BGR color order by default.
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            self.current_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
-            # If the conversion fails for any reason, log the error and exit the callback.
-            self.get_logger().error('Failed to convert image: %s' % e)
-            return
+            self.get_logger().error(f"Image conversion error: {e}")
 
-        # Display the converted image in a window named 'Camera Feed'
-        cv2.imshow('Camera Feed', cv_image)
+    def detection_callback(self, msg):
+        """Store the latest detections and trigger processing."""
+        self.current_detections = msg
+        self.process_and_display()
+
+    def process_and_display(self):
+        """If we have both an image and detections, draw the boxes and display."""
+        if self.current_image is None or self.current_detections is None:
+            return # Wait until we have both messages
+
+        # Create a copy of the image to draw on
+        img_to_show = self.current_image.copy()
         
-        # Wait for 1 millisecond for a key press. This is necessary for cv2.imshow() to work.
-        # The '& 0xFF' is a bitwise operation to get the last byte, which is standard for checking key presses.
-        key = cv2.waitKey(1) & 0xFF
+        for detection in self.current_detections.detections:
+            # Extract bounding box parameters from the message
+            center_x = detection.bbox.center.position.x
+            center_y = detection.bbox.center.position.y
+            width = detection.bbox.size_x
+            height = detection.bbox.size_y
+            
+            # Calculate top-left and bottom-right corners for OpenCV's rectangle function
+            x1 = int(center_x - width / 2)
+            y1 = int(center_y - height / 2)
+            x2 = int(center_x + width / 2)
+            y2 = int(center_y + height / 2)
+            
+            # Draw a green rectangle around the detected object
+            color = (0, 255, 0)  # Green in BGR format
+            thickness = 2
+            cv2.rectangle(img_to_show, (x1, y1), (x2, y2), color, thickness)
+            
+            # Add a label with the class name and confidence score
+            if detection.results: # Check if there is a classification result
+                class_name = detection.results[0].hypothesis.class_id
+                confidence = detection.results[0].hypothesis.score
+                label = f"{class_name}: {confidence:.2f}" # Format: 'car: 0.92'
+                
+                # Draw the label background
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.6
+                label_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
+                cv2.rectangle(img_to_show, (x1, y1 - label_size[1] - 10), (x1 + label_size[0], y1), color, -1) # Filled rectangle
+                # Draw the label text
+                cv2.putText(img_to_show, label, (x1, y1 - 5), font, font_scale, (0, 0, 0), thickness) # Black text
         
-        # If the 'q' key is pressed, exit the node gracefully.
-        if key == ord('q'):
-            self.get_logger().info('Shutting down display subscriber node.')
-            rclpy.shutdown()
+        # Display the final image with detections
+        cv2.imshow("YOLO Object Detections", img_to_show)
+        # Wait for 1 millisecond. This is necessary for OpenCV to update the window.
+        # If 'q' is pressed, exit the program.
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            self.get_logger().info("User requested to shut down.")
+            raise KeyboardInterrupt # This will trigger the shutdown sequence
 
 def main(args=None):
-    """
-    Main function to initialize and run the ROS node.
-    """
-    # Initialize the ROS client library.
     rclpy.init(args=args)
-    
-    # Create an instance of the DisplaySubscriber node.
-    display_subscriber = DisplaySubscriber()
-    
-    # Keep the node running and processing callbacks until it is explicitly shut down.
+    node = DisplaySubscriber()
     try:
-        rclpy.spin(display_subscriber)
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        node.get_logger().info("Display node shut down successfully.")
     finally:
-        # Cleanup: Destroy the node and shutdown ROS.
-        display_subscriber.destroy_node()
-        rclpy.shutdown()
-        # Close all OpenCV windows that were created.
+        # Ensure all OpenCV windows are closed when the node stops
         cv2.destroyAllWindows()
+        node.destroy_node()
+        rclpy.shutdown()
 
-# This standard Python idiom ensures the main() function runs only when the script is executed directly.
 if __name__ == '__main__':
     main()
