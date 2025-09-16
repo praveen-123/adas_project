@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import torch
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -7,88 +8,134 @@ from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithP
 from cv_bridge import CvBridge
 from ultralytics import YOLO
 import cv2
+import os
+import time
+from collections import Counter
 
 class YOLODetector(Node):
     """
-    A ROS2 node that performs real-time object detection using YOLOv8 on images
-    received from a camera topic.
+    A ROS2 node that performs real-time object detection using YOLOv8n and YOLOv8s
+    on images received from a camera topic. Logs FPS, mean confidence, and class counts.
     """
     def __init__(self):
         super().__init__('yolo_detector')
         self.get_logger().info("Initializing YOLO Detector node...")
-        
-        # Load the YOLOv8 model (using 'yolov8n.pt' for nano, fast version)
-        self.model = YOLO('yolov8n.pt')  # You can change to 'yolov8s.pt' or 'yolov8m.pt' for better accuracy
-        self.get_logger().info("YOLOv8 model loaded successfully.")
-        
-        # Initialize CV Bridge for ROS2-OpenCV conversion
+
+        # Load YOLO models
+        #comment out:
+        #self.model_n = YOLO('yolov8n.pt')
+        #keep:
+        self.model_s = YOLO('yolov8s.pt')
+        # comment out:
+        #self.get_logger().info("YOLOv8n model loaded successfully.")
+        #keep:
+        self.get_logger().info("YOLOv8s model loaded successfully.")
+
+        # Detect device (GPU if available, else CPU)
+        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        #comment out:
+        #self.model_n.to(self.device)
+        #keep:
+        self.model_s.to(self.device)
+        self.get_logger().info(f"Using device: {self.device}")
+
+        # Initialize CV Bridge
         self.bridge = CvBridge()
-        
-        # Subscribe to the raw camera image topic
+
+        # Subscribe to camera topic
         self.subscription = self.create_subscription(
             Image,
-            '/camera/image_raw',  # Topic from your camera_publisher node
-            self.image_callback,  # Function to call when a message is received
-            10  # Queue size
+            '/camera/image_raw',
+            self.image_callback,
+            10
         )
-        self.subscription  # Prevent unused variable warning
-        
-        # Create a publisher to output the detections
+
+        # Publisher (we use YOLOv8s results for ROS messages)
         self.detection_pub = self.create_publisher(Detection2DArray, '/yolo_detections', 10)
-        
+
+        # Output folder
+        self.output_dir = "/home/pravinhiremath/adas_project/output_frames"
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        self.prev_time = time.time()
         self.get_logger().info("YOLO Detector node is ready. Waiting for images...")
 
+    def log_results(self, model_name, results, fps):
+        """Log FPS, mean confidence, and class counts for a given model."""
+        confidences = []
+        classes = []
+        for result in results:
+            for box in result.boxes:
+                confidences.append(box.conf[0].item())
+                classes.append(result.names[int(box.cls[0].item())])
+
+        mean_conf = sum(confidences) / len(confidences) if confidences else 0.0
+        counts = dict(Counter(classes))
+
+        self.get_logger().info(
+            f"[{model_name}] FPS: {fps:.2f} | Mean Conf: {mean_conf:.2f} | Counts: {counts}"
+        )
+
     def image_callback(self, msg):
-        """
-        Callback function for the image subscriber.
-        """
         try:
-            # Convert the ROS Image message to an OpenCV image (BGR format)
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
             self.get_logger().error(f"CV Bridge error: {e}")
             return
 
-        # Run YOLOv8 inference on the image
-        results = self.model(cv_image)
-        
-        # Create a Detection2DArray message to hold all detections
-        detection_array = Detection2DArray()
-        detection_array.header = msg.header  # Use the same timestamp as the input image
+        # Calculate FPS
+        current_time = time.time()
+        fps = 1.0 / (current_time - self.prev_time)
+        self.prev_time = current_time
 
-        # Parse the results from YOLO
-        for result in results:
+        # Run inference with both models
+        #comment out:
+        #results_n = self.model_n(cv_image, device=self.device, verbose=False)
+        #keep:
+        results_s = self.model_s(cv_image, device=self.device, verbose=False)
+
+        # Log separately
+        #comment out:
+        #self.log_results("YOLOv8n", results_n, fps)
+        #keep:
+        self.log_results("YOLOv8s", results_s, fps)
+
+        # Save YOLOv8s result frame (better accuracy)
+        #comment out:
+        # output_path = os.path.join(self.output_dir, f"yolov8n_frame_{msg.header.stamp.sec}_{msg.header.stamp.nanosec}.jpg")
+        # cv2.imwrite(output_path, results_n[0].plot())
+
+        #keep:
+        output_path = os.path.join(self.output_dir, f"yolov8s_frame_{msg.header.stamp.sec}_{msg.header.stamp.nanosec}.jpg")
+        cv2.imwrite(output_path, results_s[0].plot())
+
+        # Publish detections (from YOLOv8s)
+        detection_array = Detection2DArray()
+        detection_array.header = msg.header
+        #comment out:
+        #for result in results_n:
+        #keep:
+        for result in results_s:
             for box in result.boxes:
-                # Extract bounding box coordinates (x1, y1, x2, y2) in pixel coordinates
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
-                # Get the confidence score
                 confidence = box.conf[0].item()
-                # Get the class ID and convert it to the class name (e.g., 0 -> 'person')
                 class_id = int(box.cls[0].item())
                 class_name = result.names[class_id]
 
-                # Create a single Detection2D message for this object
                 detection = Detection2D()
-                
-                # Define the bounding box in terms of its center and size
-                detection.bbox.center.position.x = (x1 + x2) / 2.0  # Center x coordinate
-                detection.bbox.center.position.y = (y1 + y2) / 2.0  # Center y coordinate
-                detection.bbox.size_x = x2 - x1  # Width of the box
-                detection.bbox.size_y = y2 - y1  # Height of the box
+                detection.bbox.center.position.x = (x1 + x2) / 2.0
+                detection.bbox.center.position.y = (y1 + y2) / 2.0
+                detection.bbox.size_x = x2 - x1
+                detection.bbox.size_y = y2 - y1
 
-                # Create a hypothesis for the classification result
                 hypothesis = ObjectHypothesisWithPose()
-                hypothesis.hypothesis.class_id = class_name  # The class name (e.g., 'car')
-                hypothesis.hypothesis.score = confidence     # The confidence score (0.0 to 1.0)
+                hypothesis.hypothesis.class_id = class_name
+                hypothesis.hypothesis.score = confidence
                 detection.results.append(hypothesis)
 
-                # Add this detection to the array
                 detection_array.detections.append(detection)
 
-        # Publish the complete array of detections
         self.detection_pub.publish(detection_array)
-        # Log the number of detections (throttled to avoid spamming the console)
-        self.get_logger().info(f"Published {len(detection_array.detections)} detection(s).", throttle_duration_sec=1.0)
 
 def main(args=None):
     rclpy.init(args=args)
