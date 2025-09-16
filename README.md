@@ -121,4 +121,19 @@ Implemented real-time object detection using YOLOv8 integrated with ROS 2.
    python3 src/scripts/display_subscriber.py
 
 
+## Day 4: Updated detector_node.py file for GPU Acceleration
+
+The object detection node now supports GPU acceleration when an NVIDIA GPU is available. Key features:
+
+- Automatic detection of CUDA-capable devices
+- Performance logging (FPS, confidence scores, class counts)
+- Frame output with detection visualizations
+- Support for multiple YOLO models (YOLOv8s currently enabled)
+
+To use GPU acceleration:
+1. Ensure you have NVIDIA drivers and CUDA toolkit installed
+2. Install GPU-enabled PyTorch: `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
+3. The detector will automatically use GPU if available
+
+
 This project is for portfolio and educational purposes.
