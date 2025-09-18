@@ -135,5 +135,28 @@ To use GPU acceleration:
 2. Install GPU-enabled PyTorch: `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
 3. The detector will automatically use GPU if available
 
+## Day 5: Radar Simulation & Calibration System
+
+**Objective:** Implemented a production-grade radar simulation with proper calibration and realistic sensor models.
+
+### Key Features:
+- **Camera Calibration System:** Configurable YAML-based calibration parameters
+- **Pinhole Camera Model:** Accurate pixel-to-3D coordinate transformation
+- **Realistic Radar Simulation:** Noise models based on automotive radar specifications:
+  - Range accuracy: ±15cm
+  - Angular accuracy: ±0.2°
+  - Velocity accuracy: ±0.1 m/s
+- **Multiple Verification Methods:** Terminal monitoring, rqt visualization, and command-line tools
+
+### Files Added:
+- `src/scripts/calibration_loader.py` - Camera calibration and coordinate transformation
+- `src/scripts/radar_emulator_node.py` - Enhanced radar simulator with realistic noise
+- `simulations/camera_calibration.yaml` - Camera calibration parameters
+
+### Visualization Challenges:
+Due to compatibility issues with RViz2, the following verification methods are recommended:
+1. **rqt Image View:** `rqt` → Plugins → Visualization → Image View → `/camera/image_raw`
+
+
 
 This project is for portfolio and educational purposes.
