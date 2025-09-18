@@ -4,6 +4,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
+from sensor_msgs.msg import PointCloud2
 from cv_bridge import CvBridge
 import cv2
 
@@ -34,6 +35,15 @@ class DisplaySubscriber(Node):
             self.detection_callback,
             10
         )
+
+        # Subscribe to radar points
+        self.radar_sub = self.create_subscription(
+            PointCloud2,
+            '/radar_points',
+            self.radar_callback,
+            10
+        )
+        self.radar_count = 0  # Simple counter
         
         self.get_logger().info("Display subscriber node started. Waiting for data...")
 
@@ -48,6 +58,12 @@ class DisplaySubscriber(Node):
         """Store the latest detections and trigger processing."""
         self.current_detections = msg
         self.process_and_display()
+
+    def radar_callback(self, msg):
+        """Simple callback to show we're getting radar data."""
+        self.radar_count = msg.width
+        # Log the info. We'll display it in the image in the next step.
+        self.get_logger().info(f"Radar points: {self.radar_count}", throttle_duration_sec=1.0)
 
     def process_and_display(self):
         """If we have both an image and detections, draw the boxes and display."""
