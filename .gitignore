@@ -1,3 +1,6 @@
+# Ignore generated camera log and frames
+camera_log.csv
+frame_*.png
 # Large data files
 simulations/2011_09_26_drive_0005_extract/
 simulations/myvideo.mp4
